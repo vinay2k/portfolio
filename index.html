@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sai Vinay Reddy</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #000;
+    overflow: hidden;
+    font-family: 'DM Mono', monospace;
+    color: #e8e8f0;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  /* LetterGlitch canvas */
+  #glitch-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+
+  /* Outer vignette */
+  #vignette {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(circle, rgba(0,0,0,0) 50%, rgba(0,0,0,0.95) 100%);
+  }
+
+  /* Center content */
+  #content {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    padding: 2rem;
+    text-align: center;
+    z-index: 2;
+  }
+
+  #label {
+    font-family: 'time of roman', sans-serif;
+  font-weight: 900;
+  font-size: 1.15rem;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: #f7fbf8;
+  opacity: 0;
+  animation: fadeUp 0.8s 0.4s forwards;
+}
+
+  #name {
+    font-family: 'Syne', sans-serif;
+    font-size: clamp(2.5rem, 10vw, 6.5rem);
+    font-weight: 800;
+    line-height: 0.95;
+    letter-spacing: -0.03em;
+    opacity: 0;
+    animation: fadeUp 0.8s 0.7s forwards;
+  }
+  #name span { color: #00e5ff; }
+
+  #role {
+    font-family: 'time of roman', sans-serif;
+  font-size: clamp(1.2rem, 3vw, 1.4rem);
+  font-weight: 900;
+  color: #00e5ff;
+  letter-spacing: 0.1em;
+  opacity: 0;
+  animation: fadeUp 0.8s 1s forwards;
+}
+
+  /* Progress bar */
+  #progress-wrap {
+    margin-top: 2rem;
+    width: min(260px, 70vw);
+    opacity: 0;
+    animation: fadeUp 0.8s 1.3s forwards;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  #progress-bar {
+    width: 100%;
+    height: 1px;
+    background: rgba(215, 198, 198, 0.311);
+    border-radius: 1px;
+    overflow: hidden;
+    position: relative;
+  }
+  #progress-fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #00e5ff, #7b2fff);
+    border-radius: 1px;
+    transition: width 0.1s linear;
+    box-shadow: 0 0 8px rgba(0,229,255,0.6);
+  }
+  #progress-label, #progress-status {
+    font-size: 0.65rem;
+    letter-spacing: 0.15em;
+    color: #3a3a50;
+    text-transform: uppercase;
+  }
+
+
+
+  /* Skip */
+  #skip {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    font-size: 0.65rem;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #2a2a3a;
+    cursor: pointer;
+    opacity: 0;
+    animation: fadeUp 0.6s 2s forwards;
+    transition: color 0.2s;
+  }
+  #skip:hover { color: #6b6b80; }
+
+  /* Redirect flash overlay */
+  #flash {
+    position: fixed;
+    inset: 0;
+    background: #0a0a0f;
+    opacity: 0;
+    pointer-events: none;
+    z-index: 9999;
+    transition: opacity 0.7s ease;
+  }
+  #flash.go { opacity: 1; }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to   { opacity: 1; transform: none; }
+  }
+  @keyframes pulse-ring {
+    0%,100% { box-shadow: 0 0 0 0 rgba(0,229,255,0.3); }
+    50%      { box-shadow: 0 0 0 6px rgba(0,229,255,0); }
+  }
+</style>
+</head>
+<body>
+
+<canvas id="glitch-canvas"></canvas>
+<div id="vignette"></div>
+
+<div id="content">
+  <div id="label">Welcome TO</div>
+  <h1 id="name">Sai <span>Vinay</span><br>Reddy</h1>
+  <div id="label">Portfolio</div>
+  <div id="role">Software Developer &nbsp;·&nbsp; Hyderabad, India</div>
+
+  <div id="progress-wrap">
+    <div id="progress-bar"><div id="progress-fill"></div></div>
+    <div id="progress-label">Loading portfolio...</div>
+    <div id="progress-status">Loading portfolio...</div>
+  </div>
+</div>
+
+<div id="skip">skip →</div>
+<div id="flash"></div>
+
+<script>
+// ── LetterGlitch ─────────────────────────────────────────────────────────────
+(function () {
+  const canvas = document.getElementById('glitch-canvas');
+  const ctx = canvas.getContext('2d');
+
+  const COLORS = ['#0a1f18', '#00e5ff', '#0d4a5e', '#7b2fff', '#061510'];
+  const CHARS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ!@#$&*()-_+=/[]{};:<>.,0123456789';
+  const CHAR_ARR = Array.from(CHARS);
+  const CHAR_W = 10, CHAR_H = 20, FONT_SIZE = 16, SPEED = 45;
+
+  let letters = [], cols = 0, rows = 0, lastT = Date.now(), raf;
+
+  const rChar = () => CHAR_ARR[Math.floor(Math.random() * CHAR_ARR.length)];
+  const rColor = () => COLORS[Math.floor(Math.random() * COLORS.length)];
+
+  const h2r = h => {
+    h = h.replace(/^#?([a-f\d])([a-f\d])([a-f\d])$/i, (_,r,g,b)=>r+r+g+g+b+b);
+    const m = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(h);
+    return m ? {r:parseInt(m[1],16),g:parseInt(m[2],16),b:parseInt(m[3],16)} : null;
+  };
+  const lerp = (a,b,t) => `rgb(${Math.round(a.r+(b.r-a.r)*t)},${Math.round(a.g+(b.g-a.g)*t)},${Math.round(a.b+(b.b-a.b)*t)})`;
+
+  const resize = () => {
+    const dpr = window.devicePixelRatio || 1;
+    const w = window.innerWidth, h = window.innerHeight;
+    canvas.width = w * dpr; canvas.height = h * dpr;
+    canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    cols = Math.ceil(w / CHAR_W); rows = Math.ceil(h / CHAR_H);
+    letters = Array.from({length: cols * rows}, () => ({
+      char: rChar(), color: rColor(), target: rColor(), p: 1
+    }));
+    draw();
+  };
+
+  const draw = () => {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.font = `${FONT_SIZE}px monospace`;
+    ctx.textBaseline = 'top';
+    letters.forEach((l, i) => {
+      ctx.fillStyle = l.color;
+      ctx.fillText(l.char, (i % cols) * CHAR_W, Math.floor(i / cols) * CHAR_H);
+    });
+  };
+
+  const update = () => {
+    const n = Math.max(1, Math.floor(letters.length * 0.05));
+    for (let i = 0; i < n; i++) {
+      const idx = Math.floor(Math.random() * letters.length);
+      letters[idx].char = rChar();
+      letters[idx].target = rColor();
+      letters[idx].p = 0;
+    }
+  };
+
+  const animate = () => {
+    const now = Date.now();
+    if (now - lastT >= SPEED) { update(); draw(); lastT = now; }
+    let dirty = false;
+    letters.forEach(l => {
+      if (l.p < 1) {
+        l.p = Math.min(1, l.p + 0.05);
+        const s = h2r(l.color), e = h2r(l.target);
+        if (s && e) { l.color = lerp(s, e, l.p); dirty = true; }
+      }
+    });
+    if (dirty) draw();
+    raf = requestAnimationFrame(animate);
+  };
+
+  resize();
+  window.addEventListener('resize', resize);
+  animate();
+
+  window._stopGlitch = () => cancelAnimationFrame(raf);
+})();
+
+// ── Progress bar + auto redirect ─────────────────────────────────────────────
+const fill = document.getElementById('progress-fill');
+const status = document.getElementById('progress-status');
+const flash = document.getElementById('flash');
+
+const DURATION = 3500;
+const start = Date.now();
+
+const goToPortfolio = () => {
+  if (window._stopGlitch) window._stopGlitch();
+  flash.classList.add('go');
+  setTimeout(() => { window.location.href = 'intro.html'; }, 700);
+};
+
+const tick = () => {
+  const elapsed = Date.now() - start;
+  const pct = Math.min(100, (elapsed / DURATION) * 100);
+  fill.style.width = pct + '%';
+
+  if (pct < 30) status.textContent = 'Loading portfolio...';
+  else if (pct < 65) status.textContent = 'Initializing...';
+  else if (pct < 95) status.textContent = 'Almost there...';
+  else status.textContent = 'Ready.';
+
+  if (pct >= 100) {
+    setTimeout(goToPortfolio, 300);
+    return;
+  }
+
+  requestAnimationFrame(tick);
+};
+requestAnimationFrame(tick);
+
+// Skip still works
+document.getElementById('skip').addEventListener('click', goToPortfolio);
+document.addEventListener('keydown', function once() {
+  goToPortfolio();
+  document.removeEventListener('keydown', once);
+});
+</script>
+</body>
+</html>
